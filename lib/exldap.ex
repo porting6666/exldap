@@ -12,13 +12,13 @@ defmodule Exldap do
 
   """
   def connect(timeout \\ 3000) do
-    want =  Application.get_env(:exldap, :settings) 
-              |> Keyword.take([:server, :port, :ssl, :user_dn, :password])
+    want =  Application.get_env(:exldap, :settings)
+            |> Enum.into(%{})
 
     connect(want, timeout)
   end
 
-  def connect([server: server, port: port, ssl: true, user_dn: user_dn, password: password], timeout) do
+  def connect(%{server: server, port: port, ssl: true, user_dn: user_dn, password: password}, timeout) do
     case :eldap.open([to_charlist(server)], [{:port, port}, {:ssl, true}, {:timeout, timeout}]) do
       {:ok, connection} ->
         case verify_credentials(connection, user_dn, password) do
@@ -29,7 +29,7 @@ defmodule Exldap do
     end
   end
 
-  def connect([server: server, port: port, ssl: false, user_dn: user_dn, password: password], timeout) do
+  def connect(%{server: server, port: port, ssl: false, user_dn: user_dn, password: password}, timeout) do
     case :eldap.open([to_charlist(server)], [{:port, port}, {:timeout, timeout}]) do
       {:ok, connection} ->
         case verify_credentials(connection, user_dn, password) do
@@ -40,7 +40,7 @@ defmodule Exldap do
     end
   end
 
-  def connect([server: server, port: port, user_dn: user_dn, password: password], timeout) do
+  def connect(%{server: server, port: port, user_dn: user_dn, password: password}, timeout) do
     case :eldap.open([to_charlist(server)], [{:port, port}, {:timeout, timeout}]) do
       {:ok, connection} ->
         case verify_credentials(connection, user_dn, password) do
@@ -163,7 +163,7 @@ defmodule Exldap do
 
   """
   def change_password(connection, user_dn, new_password) do
-    :eldap.modify(connection, to_charlist(user_dn), 
+    :eldap.modify(connection, to_charlist(user_dn),
     [
       :eldap.mod_replace('unicodePwd', [encode_password(new_password)])
     ])
@@ -183,7 +183,7 @@ defmodule Exldap do
   """
   def change_password(connection, user_dn, old_password, new_password) do
 
-    :eldap.modify(connection, to_charlist(user_dn), 
+    :eldap.modify(connection, to_charlist(user_dn),
     [
       :eldap.mod_delete('unicodePwd', [encode_password(old_password)]),
       :eldap.mod_add('unicodePwd', [encode_password(new_password)])
@@ -232,9 +232,9 @@ defmodule Exldap do
 
     search(connection, options)
   end
-  
+
   @doc ~S"""
-  Searches for a LDAP entry via a field using a substring, with the search base specified in config.secre.exs. 
+  Searches for a LDAP entry via a field using a substring, with the search base specified in config.secre.exs.
   For example, if you want to find all entries that have a last name that starts with "smi", you could supply {:initial, "smi"} to the substring parameter.
 
   ## Example
@@ -250,9 +250,9 @@ defmodule Exldap do
 
     search_substring(connection, base, field, substring)
   end
-  
+
   @doc ~S"""
-  Searches for a LDAP entry via a field using a substring. 
+  Searches for a LDAP entry via a field using a substring.
   For example, if you want to find all entries that have a last name that starts with "smi", you could supply {:initial, "smi"} to the substring parameter.
 
   ## Example
@@ -268,7 +268,7 @@ defmodule Exldap do
     filter = substrings(field, {atom, substring})
     search_with_filter(connection, base, filter)
   end
-  
+
   @doc ~S"""
   Searches for a LDAP entry via a field using a substring. If a string is passed to substring then the default action is {:any, substring}
 
@@ -282,7 +282,7 @@ defmodule Exldap do
   """
   def search_substring(connection, base, field, substring) do
     search_substring(connection, base, field, {:any, substring})
-  end  
+  end
 
   @doc ~S"""
   Creates a substring filter. Please refer to eldap:substrings
@@ -294,8 +294,8 @@ defmodule Exldap do
 
   """
   def substrings(field, substring) when is_list(substring) do
-    list_as_charlist = Enum.map(substring, fn({atom, sub}) -> 
-      {atom, to_charlist(sub)} 
+    list_as_charlist = Enum.map(substring, fn({atom, sub}) ->
+      {atom, to_charlist(sub)}
     end)
     :eldap.substrings(to_charlist(field), list_as_charlist)
   end
@@ -361,8 +361,8 @@ defmodule Exldap do
 
   """
   def present(type) do
-    type 
-      |> to_charlist 
+    type
+      |> to_charlist
       |> :eldap.present
   end
 
@@ -372,11 +372,11 @@ defmodule Exldap do
   ## Example
 
       iex> exclude_disabled_accounts = Exldap.extensibleMatch("2", [{:type, "userAccountControl"}, {:matchingRule, "1.2.840.113556.1.4.803"}]) |> Exldap.negate
-      
+
   """
-  def extensibleMatch(match_value, match_attributes) do    
-    list_as_charlist = Enum.map(match_attributes, fn({atom, match_attribute}) -> 
-      {atom, to_charlist(match_attribute)} 
+  def extensibleMatch(match_value, match_attributes) do
+    list_as_charlist = Enum.map(match_attributes, fn({atom, match_attribute}) ->
+      {atom, to_charlist(match_attribute)}
     end)
     :eldap.extensibleMatch(to_charlist(match_value), list_as_charlist)
   end
@@ -426,12 +426,12 @@ defmodule Exldap do
   @doc ~S"""
   Converts a binary representation of a Microsoft SID into SDDL notation
   Microsoft SID Stucture reference: http://www.selfadsi.org/deep-inside/microsoft-sid-attributes.htm
-  """ 
-  def sid_to_string(sid) do    
+  """
+  def sid_to_string(sid) do
     <<revision :: size(8), sub_id_count :: size(8), identifier_authority :: size(48), sub_authorities :: binary>> = sid
 
     sid_string = "S-" <> to_string(revision) <> "-" <> to_string(identifier_authority)
-    build_sub_authority(sub_authorities, sid_string, sub_id_count) 
+    build_sub_authority(sub_authorities, sid_string, sub_id_count)
   end
 
   defp build_sub_authority(data, sid_string, n) when n <= 1 do
@@ -447,7 +447,7 @@ defmodule Exldap do
   @doc ~S"""
   Converts a SDDL representation of a Microsoft SID into a binary
   Microsoft SID Stucture reference: http://www.selfadsi.org/deep-inside/microsoft-sid-attributes.htm
-  """ 
+  """
   def string_to_sid(sid_string) do
     <<"S-", revision_string, "-", identifier_authority_string, "-", sub_authorities :: binary>> = sid_string
 
@@ -460,22 +460,22 @@ defmodule Exldap do
 
   defp deconstruct_sub_authority([first | rest]) do
     sub_authority = String.to_integer(first)
-    sid = <<sub_authority :: size(4)-little-unsigned-integer-unit(8)>> 
+    sid = <<sub_authority :: size(4)-little-unsigned-integer-unit(8)>>
     deconstruct_sub_authority(rest, sid, 1)
   end
 
   defp deconstruct_sub_authority([first | rest], binary_sid, sub_id_count) do
     sub_authority = String.to_integer(first)
-    sid = binary_sid <> <<sub_authority :: size(4)-little-unsigned-integer-unit(8)>> 
+    sid = binary_sid <> <<sub_authority :: size(4)-little-unsigned-integer-unit(8)>>
     deconstruct_sub_authority(rest, sid, sub_id_count + 1)
   end
 
   defp deconstruct_sub_authority([], binary_sid, sub_id_count) do
-    {sub_id_count, binary_sid} 
+    {sub_id_count, binary_sid}
   end
-  
+
   @doc ~S"""
-  Search LDAP with a raw filter function, the base to search within is obtained from config.secret.exs. 
+  Search LDAP with a raw filter function, the base to search within is obtained from config.secret.exs.
   Look at eldap:search for more information
 
   ## Example
@@ -497,7 +497,7 @@ defmodule Exldap do
 
   @doc ~S"""
   Search LDAP with a raw filter function. Look at eldap:search for more information
-  
+
   ## Example
 
       iex> {:ok, connection} = Exldap.connect
@@ -540,7 +540,7 @@ defmodule Exldap do
       {:ok, result} ->
         result = Exldap.SearchResult.from_record(result)
         {:ok, result.entries |> Enum.map(fn(x) -> Exldap.Entry.from_record(x) end)}
-      {_, message} -> 
+      {_, message} ->
         {:error, message}
     end
   end
