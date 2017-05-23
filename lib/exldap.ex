@@ -233,6 +233,16 @@ defmodule Exldap do
     search(connection, options)
   end
 
+  def search_field(connection, base, field, name, search_timeout) do
+    base_config = {:base, to_charlist(base)}
+    scope = {:scope, :eldap.wholeSubtree()}
+    filter = {:filter, :eldap.equalityMatch(to_charlist(field), to_charlist(name))}
+    timeout = {:timeout, search_timeout}
+    options = [base_config, scope, filter, timeout]
+
+    search(connection, options)
+  end
+
   @doc ~S"""
   Searches for a LDAP entry via a field using a substring, with the search base specified in config.secre.exs.
   For example, if you want to find all entries that have a last name that starts with "smi", you could supply {:initial, "smi"} to the substring parameter.
